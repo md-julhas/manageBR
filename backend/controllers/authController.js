@@ -11,7 +11,7 @@ import sendEmailWithNodemailer from "../utils/sendEmailWithNodemailer.js"
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax", // <-- fix for dev & prod
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
 }
 
 const handleLogin = async (req, res, next) => {
