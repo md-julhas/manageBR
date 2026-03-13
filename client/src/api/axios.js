@@ -1,23 +1,21 @@
 import axios from "axios"
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true,
+  baseURL: import.meta.env.VITE_API_URL, // your backend URL
+  withCredentials: true, // important for cookies
 })
-
-// Add interceptor to handle token refresh
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
 
-    const isLoginRequest = originalRequest.url.includes("/auth/login")
-    const isRefreshRequest = originalRequest.url.includes("/auth/refresh-token")
-    const isVerifyEmailRequest =
-      originalRequest.url.includes("/auth/verify-email")
-
-    if (isLoginRequest || isRefreshRequest || isVerifyEmailRequest) {
+    const skipUrls = [
+      "/auth/login",
+      "/auth/refresh-token",
+      "/auth/verify-email",
+    ]
+    if (skipUrls.some((url) => originalRequest.url.includes(url))) {
       return Promise.reject(error)
     }
 
@@ -28,8 +26,8 @@ api.interceptors.response.use(
     ) {
       originalRequest._retry = true
       try {
-        await api.get("/auth/refresh-token")
-        return api(originalRequest)
+        await api.get("/auth/refresh-token") // sends refresh cookie automatically
+        return api(originalRequest) // retry original request
       } catch (refreshError) {
         console.error("Refresh token expired")
         return Promise.reject(refreshError)

@@ -7,19 +7,22 @@ import { successReponse } from "../utils/responseHandlers.js"
 import createjwtToken from "../utils/jsonwebtoken.js"
 import sendEmailWithNodemailer from "../utils/sendEmailWithNodemailer.js"
 
+// Common cookie options
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax", // <-- fix for dev & prod
+}
+
 const handleLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body
 
     const user = await User.findOne({ email })
-    if (!user) {
-      throw createHttpError(404, "User does not exist with this email")
-    }
+    if (!user) throw createHttpError(404, "User does not exist with this email")
 
     const isPasswordMatch = await bcrypt.compare(password, user.password)
-    if (!isPasswordMatch) {
-      throw createHttpError(401, "Password didn't match")
-    }
+    if (!isPasswordMatch) throw createHttpError(401, "Password didn't match")
 
     if (user.isBanned) {
       throw createHttpError(
@@ -28,9 +31,8 @@ const handleLogin = async (req, res, next) => {
       )
     }
 
-    if (!user.isVerified) {
+    if (!user.isVerified)
       throw createHttpError(403, "Your acccount is not verified")
-    }
 
     const userPayload = {
       _id: user._id,
@@ -54,18 +56,13 @@ const handleLogin = async (req, res, next) => {
 
     // Set cookies
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 10 * 60 * 1000, // 10 minutes
-    })
-
+      ...cookieOptions,
+      maxAge: 10 * 60 * 1000,
+    }) // 10 min
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    })
+      ...cookieOptions,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    }) // 30 days
 
     return successReponse(res, {
       statusCode: 200,
@@ -79,12 +76,12 @@ const handleLogin = async (req, res, next) => {
 
 const handleLogout = async (req, res, next) => {
   try {
-    res.clearCookie("accessToken")
-    res.clearCookie("refreshToken")
+    res.clearCookie("accessToken", cookieOptions)
+    res.clearCookie("refreshToken", cookieOptions)
 
     return successReponse(res, {
       statusCode: 200,
-      message: "Logged out successfull",
+      message: "Logged out successfully",
     })
   } catch (error) {
     next(error)
@@ -94,16 +91,13 @@ const handleLogout = async (req, res, next) => {
 const handleRefreshToken = async (req, res, next) => {
   try {
     const oldRefreshToken = req.cookies.refreshToken
-
-    if (!oldRefreshToken) {
+    if (!oldRefreshToken)
       throw createHttpError(401, "No refresh token provided!")
-    }
 
     const decodedToken = jwt.verify(
       oldRefreshToken,
       process.env.JWT_REFRESH_KEY,
     )
-
     const { iat, exp, ...cleanPayload } = decodedToken
 
     const accessToken = createjwtToken(
@@ -112,18 +106,14 @@ const handleRefreshToken = async (req, res, next) => {
       "10m",
     )
 
-    // Set new access token in cookies
     res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 10 * 60 * 1000, // 10 minutes
+      ...cookieOptions,
+      maxAge: 10 * 60 * 1000,
     })
 
     return successReponse(res, {
       statusCode: 200,
       message: "New access token generated",
-      payload: { decodedToken }, // only return what’s necessary
     })
   } catch (error) {
     if (
@@ -144,7 +134,6 @@ const handleRefreshToken = async (req, res, next) => {
 const handleSendVerificationEmail = async (req, res, next) => {
   try {
     const { email } = req.body
-
     const user = await User.findOne({ email })
     if (!user) throw createHttpError(404, "User not found with this email")
 
@@ -153,7 +142,6 @@ const handleSendVerificationEmail = async (req, res, next) => {
     }
 
     const tokenPayload = { email }
-
     const token = createjwtToken(
       tokenPayload,
       process.env.JWT_EMAIL_VERIFY_KEY,
@@ -163,23 +151,23 @@ const handleSendVerificationEmail = async (req, res, next) => {
     const emailData = {
       email,
       subject: "Account Activation Email From Tajir Business Hub",
-      text: `Hi, ${email}\n\nPlease activate your account using the link below:\n${process.env.CLIENT_URL}/verify-email/${token}\n\nThank you!`,
+      text: `Hi, ${email}\nPlease activate your account:\n${process.env.CLIENT_URL}/verify-email/${token}`,
       html: `
         <!DOCTYPE html>
         <html>
         <body>
           <p><b>Hi, ${email}</b></p>
-          <p>Click here to <a href="${process.env.CLIENT_URL}/verify-email/${token}" target="_blank" rel="noopener noreferrer">activate your account</a></p>
-          <p>Thank you!</p>
+          <p>Click here to <a href="${process.env.CLIENT_URL}/verify-email/${token}" target="_blank">activate your account</a></p>
         </body>
         </html>
       `,
     }
+
     await sendEmailWithNodemailer(emailData)
 
     return successReponse(res, {
       statusCode: 201,
-      message: "Verification email send successfully",
+      message: "Verification email sent successfully",
       payload: { token },
     })
   } catch (error) {
@@ -190,24 +178,20 @@ const handleSendVerificationEmail = async (req, res, next) => {
 const handleVerifyEmail = async (req, res, next) => {
   try {
     const { token } = req.params
-
     if (!token) throw createHttpError(404, "Token is required")
+
     const decoded = jwt.verify(token, process.env.JWT_EMAIL_VERIFY_KEY)
-
     const { email } = decoded
-
     const user = await User.findOne({ email })
 
-    if (user.isVerified) {
-      throw createHttpError(403, "User already verified")
-    }
+    if (user.isVerified) throw createHttpError(403, "User already verified")
 
     user.isVerified = true
     await user.save()
 
     successReponse(res, {
       statusCode: 201,
-      message: "User is verified succussfully",
+      message: "User is verified successfully",
     })
   } catch (error) {
     if (

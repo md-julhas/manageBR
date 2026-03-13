@@ -25,6 +25,7 @@ const limiter = rateLimit({
 
 app.use(limiter)
 
+
 const allowedOrigin = process.env.CLIENT_URL
 app.use(
   cors({

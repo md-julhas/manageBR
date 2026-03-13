@@ -2,8 +2,7 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "react-toastify"
 import { Helmet } from "react-helmet-async"
-import { AiOutlineEye } from "react-icons/ai"
-import { AiOutlineEyeInvisible } from "react-icons/ai"
+import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai"
 
 import { inputStyle, labelStyle } from "../styles"
 import api from "../api/axios"
@@ -11,13 +10,20 @@ import { useAuthContext } from "../context/AuthContext"
 import logo from "../assets/logo.png"
 
 const Login = () => {
-  const [email, setEmail] = useState("julhas.info@gmail.com")
-  const [password, setPassword] = useState("ddddddddU2%")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
   const { setUser } = useAuthContext()
   const navigate = useNavigate()
 
+  // Demo credentials
+  const demoUser = {
+    email: "julhas.info@gmail.com",
+    password: "ddddddddU2%",
+  }
+
+  // Handle login
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -29,13 +35,23 @@ const Login = () => {
     } catch (err) {
       const errMsg = err.response?.data?.message
       toast.error(errMsg)
-      if (errMsg.includes("banned")) {
+      if (errMsg?.includes("banned")) {
         navigate("/banned")
-      } else if (errMsg.includes("not verified")) {
+      } else if (errMsg?.includes("not verified")) {
         navigate("/send-verification-email", { state: { email } })
-      } else {
-        toast.error(errMsg)
       }
+    }
+  }
+
+  // One-click demo login
+  const handleDemoLogin = async () => {
+    try {
+      const res = await api.post("/auth/login", demoUser)
+      setUser(res.data.payload)
+      navigate("/employee/dashboard")
+      toast.success("Logged in as Demo User")
+    } catch (err) {
+      toast.error("Demo login failed")
     }
   }
 
@@ -50,7 +66,7 @@ const Login = () => {
         <div className="flex items-center justify-center gap-3 mb-5">
           <img
             src={logo}
-            alt="restaurants app"
+            alt="Tazir logo"
             className="h-10 p-1.5 bg-themeColor rounded-full"
           />
           <b className="text-3xl">Tazir</b>
@@ -103,6 +119,15 @@ const Login = () => {
             className="w-full bg-themeColor text-gray-100 py-3 rounded-lg hover:opacity-90"
           >
             Login
+          </button>
+
+          {/* Demo login button */}
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            className="w-full border border-themeColor text-themeColor py-3 rounded-lg hover:bg-themeColor hover:text-white transition"
+          >
+            Login as Demo User
           </button>
         </form>
       </div>
